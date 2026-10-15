@@ -85,6 +85,26 @@ a.fbgo{text-decoration:none;font-weight:700}
 .fbgo.off{opacity:.6;cursor:default}
 .fbacts{display:flex;flex-wrap:wrap;gap:8px}
 a.buygo{text-decoration:none;font-weight:700;font-size:14px;padding:7px 16px;background:var(--buy);border-color:var(--buy);color:var(--buy-ink);box-shadow:0 2px 6px color-mix(in srgb,var(--buy) 35%,transparent)}
+/* View switch + Usage view */
+.view{display:contents}
+.views{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--rule);border-radius:999px;background:var(--surface);align-self:flex-start}
+.views button{font:inherit;font-weight:700;font-size:14px;border:0;background:none;color:var(--ink-2);padding:7px 18px;border-radius:999px;cursor:pointer}
+.views button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.views button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ucards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.ucard{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.ucard h3{font-family:var(--f-display);font-weight:600;font-size:17px;margin:0;line-height:1.2}
+.ucard .rate{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ucard .rate b{font-family:var(--f-display);font-weight:800;font-size:30px;line-height:1}
+.ucard .rate span{color:var(--ink-2);font-size:14px}
+.ucard .sub{color:var(--ink-2);font-size:13.5px;line-height:1.45}
+.ucard .sub b{color:var(--ink)}
+.ucard .foot{margin-top:auto;padding-top:8px;border-top:1px solid var(--rule);color:var(--ink-3);font-size:12.5px;line-height:1.45}
+.ustat{align-self:flex-start;font-family:var(--f-mono);font-size:11.5px;border-radius:999px;padding:2px 9px;border:1px solid var(--rule);color:var(--ink-2)}
+.ustat.ok{color:var(--good);border-color:var(--good)}
+.ustat.soon{color:var(--warn-ink);background:var(--warn-bg);border-color:transparent}
+.ustat.out{color:var(--ret);border-color:var(--ret)}
+.unote{color:var(--ink-3);font-size:13px;line-height:1.5;max-width:70ch;margin:0}
 /* Help shown when the sheet can't be loaded */
 dialog.help{max-width:640px;width:calc(100% - 32px);border:1px solid var(--rule);border-radius:16px;padding:0;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
 dialog.help::backdrop{background:rgba(10,12,11,.55)}
@@ -208,6 +228,12 @@ footer{color:var(--ink-3);font-size:13px;border-top:1px solid var(--rule);paddin
   <a class="chip suggestbtn" id="suggestBtn" href="#" target="_blank" rel="noopener" hidden>+ Suggest something to buy</a>
 </header>
 
+<div class="views" role="tablist" aria-label="View">
+  <button type="button" role="tab" id="tab-spend" aria-selected="true" aria-controls="v-spend">Spending</button>
+  <button type="button" role="tab" id="tab-usage" aria-selected="false" aria-controls="v-usage">Usage</button>
+</div>
+
+<div class="view" id="v-spend" role="tabpanel" aria-labelledby="tab-spend">
 <div class="filters collapsed" role="region" aria-label="Filters">
   <div class="fgroup opt" id="f-year"><span class="flabel">Year</span></div>
   <div class="fgroup opt" id="f-store"><span class="flabel">Store</span></div>
@@ -259,6 +285,15 @@ footer{color:var(--ink-3);font-size:13px;border-top:1px solid var(--rule);paddin
   </div>
   <button class="chip morebtn" id="moreBtn" type="button" hidden>Show more</button>
 </section>
+</div>
+
+<div class="view" id="v-usage" role="tabpanel" aria-labelledby="tab-usage" hidden>
+<section>
+  <div class="sec-head"><h2>How fast the house goes through supplies</h2><span class="muted" id="usageHint"></span></div>
+  <p class="unote">Worked out from purchases: what was bought between the first and last restock in the last 12 months, divided by the time in between. It doesn’t count what’s on the shelf, so a big stock-up can make an item look due later than it is. Pack sizes come from the “Units per pack” column in the sheet.</p>
+  <div class="ucards" id="ucards"><p class="muted">Loading…</p></div>
+</section>
+</div>
 
 </div>
 
@@ -308,7 +343,7 @@ function parseCSV(t){const rows=[];let row=[],f="",q=false;for(let i=0;i<t.lengt
   else if(c==='"')q=true;else if(c===','){row.push(f);f="";}else if(c==='\n'){row.push(f);rows.push(row);row=[];f="";}else if(c!=='\r')f+=c;}
   if(f||row.length){row.push(f);rows.push(row);}return rows;}
 function toRecords(csv){const rows=parseCSV(csv);const h=rows[0].map(s=>s.trim());const ix=n=>h.indexOf(n);
-  const iD=ix("Date"),iS=ix("Retailer"),iI=ix("Item"),iQ=ix("Qty"),iT=ix("Total ($)"),iC=ix("Category"),iR=ix("Returned"),iN=ix("Notes"),iL=ix("Link");
+  const iD=ix("Date"),iS=ix("Retailer"),iI=ix("Item"),iQ=ix("Qty"),iT=ix("Total ($)"),iC=ix("Category"),iR=ix("Returned"),iN=ix("Notes"),iL=ix("Link"),iU=ix("Units per pack"),iUn=ix("Unit");
   if(iD<0||iI<0||iT<0)throw new Error("unexpected columns");
   const out=[];for(const r of rows.slice(1)){const date=(r[iD]||"").trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
     const total=parseFloat((r[iT]||"0").replace(/[$,]/g,""))||0;const ret=iR>=0?r[iR]==="yes":(iN>=0&&(r[iN]||"").startsWith("RETURNED"));
@@ -316,7 +351,7 @@ function toRecords(csv){const rows=parseCSV(csv);const h=rows[0].map(s=>s.trim()
     if(item.includes("Mesh Strainers"))cat="Kitchen";if(item.includes("grid drain strainer"))cat="Repairs & lighting";
     const store=(r[iS]||"").trim();
     const qty=r[iQ]?+r[iQ]:null;const rawL=iL>=0?(r[iL]||"").trim():"";const link=/^https:\/\//i.test(rawL)?rawL:"";
-    out.push({date,store:store.startsWith("Amazon")?"Amazon":store,item,qty,total,unit:unitOf(qty,total),cat,group:groupOf(item),year:+date.slice(0,4),ret:0,link});}
+    out.push({date,store:store.startsWith("Amazon")?"Amazon":store,item,qty,total,unit:unitOf(qty,total),cat,group:groupOf(item),year:+date.slice(0,4),ret:0,link,upp:iU>=0?(parseFloat(r[iU])||0):0,unit:iUn>=0?(r[iUn]||"").trim():""});}
   return out;}
 let LOADERR="";
 async function loadLive(){for(const g of SOURCES){try{const res=await fetch(BASE+g,{cache:"no-store"});if(!res.ok){LOADERR="Sheet returned HTTP "+res.status;continue;}
@@ -451,13 +486,68 @@ document.getElementById("moreBtn").onclick=()=>{SHOWN+=60;render();};
 document.querySelectorAll("#ledger th button").forEach(b=>b.onclick=()=>{const k=+b.dataset.k;state.sort=state.sort[0]===k?[k,-state.sort[1]]:[k,k===2||k===1||k===5?1:-1];render();});
 refreshChips();
 if(window.Chart){Chart.defaults.font.family=css("--f-body");}
+/* ---------- Usage view ---------- */
+const SUPPLIES=[
+  {name:"Toilet paper",unit:"rolls",one:"roll",m:r=>r.unit==="rolls"&&/toilet|bath tissue/i.test(r.item)},
+  {name:"Jumbo toilet paper",unit:"jumbo rolls",one:"jumbo roll",m:r=>r.unit==="jumbo rolls"},
+  {name:"Paper towels",unit:"towel rolls",one:"roll",many:"rolls",m:r=>r.unit==="towel rolls"},
+  {name:"Kitchen trash bags (13 gal)",unit:"bags",one:"bag",m:r=>r.unit==="bags"&&/13 ?gal|tall kitchen/i.test(r.item)},
+  {name:"Small trash bags (7–10 gal)",unit:"bags",one:"bag",m:r=>r.unit==="bags"&&/7 gal|7–10|10 gal|clear trash/i.test(r.item)},
+  {name:"Laundry detergent",unit:"lb",one:"lb",many:"lb",m:r=>r.unit==="lb"&&/laundry|launder/i.test(r.item)},
+  {name:"Dish soap",unit:"fl oz",gal:1,m:r=>r.unit==="fl oz"&&/dish|pot and pan|powersuds|powerwash/i.test(r.item)&&!/dishwasher|auto-dish/i.test(r.item)},
+  {name:"Hand soap",unit:"fl oz",gal:1,m:r=>r.unit==="fl oz"&&/hand ?soap|handwash|lotion soap/i.test(r.item)},
+  {name:"Floor cleaner",unit:"fl oz",gal:1,m:r=>r.unit==="fl oz"&&/floor cleaner/i.test(r.item)},
+  {name:"Bleach",unit:"fl oz",gal:1,m:r=>r.unit==="fl oz"&&/bleach/i.test(r.item)&&!/resistant/i.test(r.item)},
+  {name:"Dishwasher detergent",unit:"fl oz",gal:1,m:r=>r.unit==="fl oz"&&/auto-dish/i.test(r.item)},
+  {name:"Cleaning vinegar",unit:"fl oz",gal:1,m:r=>r.unit==="fl oz"&&/vinegar/i.test(r.item)},
+  {name:"Powder cleanser",unit:"oz",one:"oz",many:"oz",m:r=>r.unit==="oz"&&/ajax|bon ami|cleanser|bar keepers/i.test(r.item)},
+  {name:"Sponges",unit:"sponges",one:"sponge",m:r=>r.unit==="sponges"},
+  {name:"Disposable gloves",unit:"gloves",one:"glove",m:r=>r.unit==="gloves"},
+  {name:"Light bulbs",unit:"bulbs",one:"bulb",m:r=>r.unit==="bulbs"}
+];
+const DAY=864e5,dOf=s=>new Date(s+"T12:00:00");
+const fmtD=d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:d.getFullYear()!==new Date().getFullYear()?"numeric":undefined});
+function uLabel(s,n){if(s.gal)return n===1?"gallon":"gallons";if(n===1)return s.one||s.unit.replace(/s$/,"");return s.many||s.unit;}
+function uAmt(s,n){const v=s.gal?n/128:n;const r=v>=100?Math.round(v):v>=10?Math.round(v):Math.round(v*10)/10;return r.toLocaleString("en-US")+" "+uLabel(s,r);}
+function perUnit(s,usd){const v=s.gal?usd*128:usd;return v<1?Math.round(v*100)+"¢":"$"+v.toFixed(2);}
+function usageFor(s){
+  const rows=R.filter(r=>r.upp>0&&r.total>0&&s.m(r)).map(r=>({d:dOf(r.date),date:r.date,u:(r.qty||1)*r.upp,usd:r.total,store:r.store})).sort((a,b)=>a.d-b.d);
+  if(!rows.length)return null;
+  const now=new Date(),yr=rows.filter(r=>now-r.d<=365*DAY);
+  let w=yr.length>=3?yr:rows,span="the last 12 months";if(w===rows)span=rows.length>=2?"all purchases since "+fmtD(rows[0].d):"";
+  const last=rows[rows.length-1];let rate=null;
+  if(w.length>=2){const days=(w[w.length-1].d-w[0].d)/DAY;const used=w.slice(0,-1).reduce((a,r)=>a+r.u,0);if(days>=14)rate=used/days;}
+  const units=w.reduce((a,r)=>a+r.u,0),usd=w.reduce((a,r)=>a+r.usd,0);
+  const best=rows.filter(r=>now-r.d<=730*DAY).reduce((b,r)=>!b||r.usd/r.u<b.usd/b.u?r:b,null);
+  let out=null,status="none";if(rate){out=new Date(last.d.getTime()+last.u/rate*DAY);const left=(out-now)/DAY;status=left<0?"out":left<21?"soon":"ok";}
+  return {s,rows,w,span,rate,last,out,status,avg:usd/units,best,n:w.length};
+}
+function renderUsage(){
+  const el=document.getElementById("ucards");if(!READY){return;}
+  const list=SUPPLIES.map(usageFor).filter(Boolean);
+  const order={out:0,soon:1,ok:2,none:3};list.sort((a,b)=>order[a.status]-order[b.status]||(b.rate||0)-(a.rate||0));
+  document.getElementById("usageHint").textContent=list.filter(x=>x.status==="out"||x.status==="soon").length+" of "+list.length+" supplies due soon";
+  el.innerHTML=list.map(x=>{const s=x.s;
+    const rate=x.rate?`<div class="rate"><b>${uAmt(s,x.rate*7)}</b><span>a week</span></div><div class="sub">About <b>${uAmt(s,x.rate*30.44)}</b> a month</div>`:`<div class="rate"><span>Not enough purchases yet to estimate a rate</span></div>`;
+    const st=x.status==="out"?`<span class="ustat out">Probably running out · was due ${fmtD(x.out)}</span>`:x.status==="soon"?`<span class="ustat soon">Due soon · around ${fmtD(x.out)}</span>`:x.status==="ok"?`<span class="ustat ok">Stocked until about ${fmtD(x.out)}</span>`:"";
+    const lastLine=`Last bought <b>${fmtD(x.last.d)}</b>: ${uAmt(s,x.last.u)} at ${esc(x.last.store)}`;
+    const cost=`Average ${perUnit(s,x.avg)} per ${uLabel(s,1)}`+(x.best?` · best ${perUnit(s,x.best.usd/x.best.u)} at ${esc(x.best.store)} (${fmtD(x.best.d)})`:"");
+    return `<article class="ucard"><h3>${esc(s.name)}</h3>${st}${rate}<div class="sub">${lastLine}</div><div class="foot">${cost}<br>${x.n} purchase${x.n>1?"s":""}${x.span?" · "+x.span:""}</div></article>`;}).join("")||'<p class="muted">No supplies with pack sizes yet.</p>';
+}
+function setView(v){const u=v==="usage";document.getElementById("v-spend").hidden=u;document.getElementById("v-usage").hidden=!u;
+  document.getElementById("tab-spend").setAttribute("aria-selected",String(!u));document.getElementById("tab-usage").setAttribute("aria-selected",String(u));
+  if(u){renderUsage();}else if(READY){render();}}
+document.getElementById("tab-spend").onclick=()=>{history.replaceState(null,"",location.pathname+location.search);setView("spend");};
+document.getElementById("tab-usage").onclick=()=>{history.replaceState(null,"","#usage");setView("usage");};
+window.addEventListener("hashchange",()=>setView(location.hash==="#usage"?"usage":"spend"));
+if(location.hash==="#usage")setView("usage");
 function showHelp(){const d=document.getElementById("help");const e=document.getElementById("helpErr");if(LOADERR){e.textContent="Details: "+LOADERR;e.hidden=false;}document.querySelector("#ledger tbody").innerHTML='<tr class="emptyrow"><td colspan="8" class="muted">Purchases couldn’t be loaded. <button class="reset" type="button" onclick="document.getElementById(\'help\').showModal()">How to fix this</button></td></tr>';try{d.showModal();}catch(_){d.setAttribute("open","");}}
 setStatus("Loading the latest purchases from the house sheet…");
 document.querySelector("#ledger tbody").innerHTML='<tr class="emptyrow"><td colspan="8" class="muted">Loading purchases from the house sheet…</td></tr>';
 ["k-total","k-month","k-items"].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent="…";});
 loadFeedback().then(f=>{if(f){FB=f;render();}});
 loadLive().then(recs=>{
-  if(recs){R=recs;READY=true;yearChips();storeChips();catChips();refreshChips();render();setStatus("Live from the house purchases sheet · "+recs.length+" items · loaded "+new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}));}
+  if(recs){R=recs;READY=true;yearChips();storeChips();catChips();refreshChips();render();renderUsage();setStatus("Live from the house purchases sheet · "+recs.length+" items · loaded "+new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}));}
   else{setStatus("Couldn\u2019t load the house sheet");showHelp();}
 });
 const rerender=()=>render();
