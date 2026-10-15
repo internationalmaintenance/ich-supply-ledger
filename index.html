@@ -503,7 +503,7 @@ const SUPPLIES=[
   {name:"Powder cleanser",unit:"oz",one:"oz",many:"oz",m:r=>r.unit==="oz"&&/ajax|bon ami|cleanser|bar keepers/i.test(r.item)},
   {name:"Sponges",unit:"sponges",one:"sponge",m:r=>r.unit==="sponges"},
   {name:"Disposable gloves",unit:"gloves",one:"glove",m:r=>r.unit==="gloves"},
-  {name:"Light bulbs",unit:"bulbs",one:"bulb",m:r=>r.unit==="bulbs"}
+  {name:"Light bulbs",unit:"bulbs",one:"bulb",noOut:1,m:r=>r.unit==="bulbs"}
 ];
 const DAY=864e5,dOf=s=>new Date(s+"T12:00:00");
 const fmtD=d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:d.getFullYear()!==new Date().getFullYear()?"numeric":undefined});
@@ -519,17 +519,17 @@ function usageFor(s){
   if(w.length>=2){const days=(w[w.length-1].d-w[0].d)/DAY;const used=w.slice(0,-1).reduce((a,r)=>a+r.u,0);if(days>=14)rate=used/days;}
   const units=w.reduce((a,r)=>a+r.u,0),usd=w.reduce((a,r)=>a+r.usd,0);
   const best=rows.filter(r=>now-r.d<=730*DAY).reduce((b,r)=>!b||r.usd/r.u<b.usd/b.u?r:b,null);
-  let out=null,status="none";if(rate){out=new Date(last.d.getTime()+last.u/rate*DAY);const left=(out-now)/DAY;status=left<0?"out":left<21?"soon":"ok";}
+  let out=null,status="none";if(rate&&!s.noOut){out=new Date(last.d.getTime()+last.u/rate*DAY);const left=(out-now)/DAY;status=left<-60?"stale":left<0?"out":left<21?"soon":"ok";}
   return {s,rows,w,span,rate,last,out,status,avg:usd/units,best,n:w.length};
 }
 function renderUsage(){
   const el=document.getElementById("ucards");if(!READY){return;}
   const list=SUPPLIES.map(usageFor).filter(Boolean);
-  const order={out:0,soon:1,ok:2,none:3};list.sort((a,b)=>order[a.status]-order[b.status]||(b.rate||0)-(a.rate||0));
+  const order={out:0,soon:1,ok:2,stale:3,none:4};list.sort((a,b)=>order[a.status]-order[b.status]||(b.rate||0)-(a.rate||0));
   document.getElementById("usageHint").textContent=list.filter(x=>x.status==="out"||x.status==="soon").length+" of "+list.length+" supplies due soon";
   el.innerHTML=list.map(x=>{const s=x.s;
     const rate=x.rate?`<div class="rate"><b>${uAmt(s,x.rate*7)}</b><span>a week</span></div><div class="sub">About <b>${uAmt(s,x.rate*30.44)}</b> a month</div>`:`<div class="rate"><span>Not enough purchases yet to estimate a rate</span></div>`;
-    const st=x.status==="out"?`<span class="ustat out">Probably running out · was due ${fmtD(x.out)}</span>`:x.status==="soon"?`<span class="ustat soon">Due soon · around ${fmtD(x.out)}</span>`:x.status==="ok"?`<span class="ustat ok">Stocked until about ${fmtD(x.out)}</span>`:"";
+    const st=x.status==="out"?`<span class="ustat out">Probably running out · was due ${fmtD(x.out)}</span>`:x.status==="soon"?`<span class="ustat soon">Due soon · around ${fmtD(x.out)}</span>`:x.status==="ok"?`<span class="ustat ok">Stocked until about ${fmtD(x.out)}</span>`:x.status==="stale"?`<span class="ustat">No purchase since ${fmtD(x.last.d)} · check stock</span>`:"";
     const lastLine=`Last bought <b>${fmtD(x.last.d)}</b>: ${uAmt(s,x.last.u)} at ${esc(x.last.store)}`;
     const cost=`Average ${perUnit(s,x.avg)} per ${uLabel(s,1)}`+(x.best?` · best ${perUnit(s,x.best.usd/x.best.u)} at ${esc(x.best.store)} (${fmtD(x.best.d)})`:"");
     return `<article class="ucard"><h3>${esc(s.name)}</h3>${st}${rate}<div class="sub">${lastLine}</div><div class="foot">${cost}<br>${x.n} purchase${x.n>1?"s":""}${x.span?" · "+x.span:""}</div></article>`;}).join("")||'<p class="muted">No supplies with pack sizes yet.</p>';
