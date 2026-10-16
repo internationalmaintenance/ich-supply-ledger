@@ -254,7 +254,7 @@ footer{color:var(--ink-3);font-size:13px;border-top:1px solid var(--rule);paddin
   <div class="fig"><span class="v" id="k-total">–</span><span class="k">spent</span></div>
   <div class="fig"><span class="v" id="k-month">–</span><span class="k" id="k-month-l">per month on average</span></div>
   <div class="fig"><span class="v" id="k-items">–</span><span class="k">items bought</span></div>
-  <div class="fig bal" id="balTile" hidden><span class="v" id="k-bal">–</span><span class="k">left in the supplies account (estimate)</span><span class="kk" id="k-bal-l"></span></div>
+  <div class="fig bal" id="balTile" hidden><span class="v" id="k-bal">–</span><span class="k">left in the supplies account (estimate)</span></div>
 </div>
 
 <section>
@@ -347,7 +347,7 @@ function parseCSV(t){const rows=[];let row=[],f="",q=false;for(let i=0;i<t.lengt
   else if(c==='"')q=true;else if(c===','){row.push(f);f="";}else if(c==='\n'){row.push(f);rows.push(row);row=[];f="";}else if(c!=='\r')f+=c;}
   if(f||row.length){row.push(f);rows.push(row);}return rows;}
 function toRecords(csv){const rows=parseCSV(csv);const h=rows[0].map(s=>s.trim());const ix=n=>h.indexOf(n);
-  const iSA=ix("Supplies acct");{const iB=h.indexOf("Confirmed balance");const b=rows[1]||[];BAL=iB>0&&/^\d{4}-\d{2}-\d{2}$/.test((b[iB-1]||"").trim())?{date:b[iB-1].trim(),bal:parseFloat((b[iB]||"").replace(/[$,]/g,"")),inc:/^y/i.test(b[iB+1]||""),monthly:parseFloat((b[iB+2]||"").replace(/[$,]/g,""))||0}:null;}
+  const iSA=ix("Supplies acct");{const iB=h.indexOf("Confirmed balance");const b=rows[1]||[];BAL=iB>0&&/^\d{4}-\d{2}-\d{2}$/.test((b[iB-1]||"").trim())?{date:b[iB-1].trim(),bal:parseFloat((b[iB]||"").replace(/[$,]/g,"")),inc:!/^n/i.test((b[iB+1]||"").trim()),monthly:parseFloat((b[iB+2]||"").replace(/[$,]/g,""))||0}:null;}
   const iD=ix("Date"),iS=ix("Retailer"),iI=ix("Item"),iQ=ix("Qty"),iT=ix("Total ($)"),iC=ix("Category"),iR=ix("Returned"),iN=ix("Notes"),iL=ix("Link"),iU=ix("Units per pack"),iUn=ix("Unit");
   if(iD<0||iI<0||iT<0)throw new Error("unexpected columns");
   const out=[];for(const r of rows.slice(1)){const date=(r[iD]||"").trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
@@ -556,11 +556,8 @@ function renderBalance(){
   const spent=R.filter(r=>r.sup&&r.date>=BAL.date).reduce((s,r)=>s+r.total,0);
   let n=0,y=a.getFullYear(),m=a.getMonth()+(BAL.inc?1:0);
   for(;;){const t=new Date(y,m,14,12);if(t>now)break;n++;m++;}
-  const next=new Date(y,m,14,12);
   const est=BAL.bal+n*BAL.monthly-spent;
   const v=document.getElementById("k-bal");v.textContent=(est<0?"−":"")+money0(Math.abs(est));v.classList.toggle("neg",est<0);
-  document.getElementById("k-bal-l").textContent=`${money(BAL.bal)} confirmed ${fmtD(a)}${n?`, + ${money0(n*BAL.monthly)} in transfers`:""}, − ${money(spent)} spent since. Next ${money0(BAL.monthly)} around ${fmtD(next)}.`;
-  tile.title="Estimate. Purchases count when they're in the sheet with the supplies card under Paid with; card charges and refunds can post later.";
   tile.hidden=false;
 }
 function showHelp(){const d=document.getElementById("help");const e=document.getElementById("helpErr");if(LOADERR){e.textContent="Details: "+LOADERR;e.hidden=false;}document.querySelector("#ledger tbody").innerHTML='<tr class="emptyrow"><td colspan="8" class="muted">Purchases couldn’t be loaded. <button class="reset" type="button" onclick="document.getElementById(\'help\').showModal()">How to fix this</button></td></tr>';try{d.showModal();}catch(_){d.setAttribute("open","");}}
