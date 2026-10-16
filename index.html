@@ -290,7 +290,7 @@ footer{color:var(--ink-3);font-size:13px;border-top:1px solid var(--rule);paddin
 <div class="view" id="v-usage" role="tabpanel" aria-labelledby="tab-usage" hidden>
 <section>
   <div class="sec-head"><h2>How fast the house goes through supplies</h2><span class="muted" id="usageHint"></span></div>
-  <p class="unote">Worked out from purchases since May 25, 2025, when the current General Maintenance term began; records from before then are incomplete. The rate is what was bought between the first and last restock, divided by the time in between. It doesn’t count what’s on the shelf, so a big stock-up can make an item look due later than it is. Pack sizes come from the “Units per pack” column in the sheet.</p>
+  <p class="unote">Worked out from purchases since May 25, 2025, when the current General Maintenance term began; records from before then are incomplete. The rate is what was bought between the first and last restock, divided by the time in between. It doesn’t count what’s on the shelf, so a big stock-up can make an item look due later than it is. Pack sizes come from the “Units per pack” column in the sheet. If someone counts what’s on the shelf, a row in the “Stock counts” tab corrects that supply’s estimate; counts are optional.</p>
   <div class="ucards" id="ucards"><p class="muted">Loading…</p></div>
 </section>
 </div>
@@ -322,6 +322,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 /* Price per unit: total ÷ qty. Rows with no qty (several items bundled in one row) have no unit price. */
 const unitOf=(qty,total)=>qty>0?Math.round(total/qty*100)/100:null;
 let R=[]; // filled from the Google Sheet on load; nothing is hardcoded
+let STOCK=[]; // optional one-off shelf counts from the "Stock counts" tab (via Public)
 
 const BASE="https://docs.google.com/spreadsheets/d/e/2PACX-1vReRtto5r5bIijyphi1aLBWAbizFonBp68q2It_tpLf_jI4VHyxRwWXbz6xmdUaZF_O4Cap_T4Pdggc/pub?single=true&output=csv&gid=";
 const SOURCES=["3001","378352150"]; // "Public" tab first, then "All purchases"
@@ -343,6 +344,7 @@ function parseCSV(t){const rows=[];let row=[],f="",q=false;for(let i=0;i<t.lengt
   else if(c==='"')q=true;else if(c===','){row.push(f);f="";}else if(c==='\n'){row.push(f);rows.push(row);row=[];f="";}else if(c!=='\r')f+=c;}
   if(f||row.length){row.push(f);rows.push(row);}return rows;}
 function toRecords(csv){const rows=parseCSV(csv);const h=rows[0].map(s=>s.trim());const ix=n=>h.indexOf(n);
+  {const iS=h.indexOf("Supply");STOCK=iS>0?rows.slice(1).filter(r=>(r[iS]||"").trim()&&/^\d{4}-\d{2}-\d{2}$/.test((r[iS-1]||"").trim())).map(r=>({date:r[iS-1].trim(),supply:r[iS].trim(),onhand:parseFloat(r[iS+1])||0})):[];}
   const iD=ix("Date"),iS=ix("Retailer"),iI=ix("Item"),iQ=ix("Qty"),iT=ix("Total ($)"),iC=ix("Category"),iR=ix("Returned"),iN=ix("Notes"),iL=ix("Link"),iU=ix("Units per pack"),iUn=ix("Unit");
   if(iD<0||iI<0||iT<0)throw new Error("unexpected columns");
   const out=[];for(const r of rows.slice(1)){const date=(r[iD]||"").trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
@@ -517,11 +519,15 @@ function usageFor(s){
   if(!rows.length)return null;
   const now=new Date(),w=rows,span="since "+fmtD(dOf(USAGE_SINCE));
   const last=rows[rows.length-1];let rate=null;
-  if(w.length>=2){const days=(w[w.length-1].d-w[0].d)/DAY;const used=w.slice(0,-1).reduce((a,r)=>a+r.u,0);if(days>=14)rate=used/days;}
+  const cnt=STOCK.filter(c=>c.supply.toLowerCase()===s.name.toLowerCase()&&c.date>=USAGE_SINCE).sort((a,b)=>a.date<b.date?1:-1)[0]||null;
+  let cd=null,after=0;
+  if(cnt){cd=dOf(cnt.date);const upTo=w.filter(r=>r.d<=cd);after=w.filter(r=>r.d>cd).reduce((a,r)=>a+r.u,0);
+    if(upTo.length){const days=(cd-upTo[0].d)/DAY;const used=upTo.reduce((a,r)=>a+r.u,0)-cnt.onhand;if(days>=14&&used>0)rate=used/days;}}
+  if(!rate&&w.length>=2){const days=(w[w.length-1].d-w[0].d)/DAY;const used=w.slice(0,-1).reduce((a,r)=>a+r.u,0);if(days>=14)rate=used/days;}
   const units=w.reduce((a,r)=>a+r.u,0),usd=w.reduce((a,r)=>a+r.usd,0);
   const best=rows.reduce((b,r)=>!b||r.usd/r.u<b.usd/b.u?r:b,null);
-  let out=null,status="none";if(rate&&!s.noOut){out=new Date(last.d.getTime()+last.u/rate*DAY);const left=(out-now)/DAY;status=left<-60?"stale":left<0?"out":left<21?"soon":"ok";}
-  return {s,rows,w,span,rate,last,out,status,avg:usd/units,best,n:w.length};
+  let out=null,status="none";if(rate&&!s.noOut){out=cnt&&rate?new Date(cd.getTime()+(cnt.onhand+after)/rate*DAY):new Date(last.d.getTime()+last.u/rate*DAY);const left=(out-now)/DAY;status=left<-60?"stale":left<0?"out":left<21?"soon":"ok";}
+  return {s,rows,w,span,rate,last,out,status,avg:usd/units,best,n:w.length,cnt};
 }
 function renderUsage(){
   const el=document.getElementById("ucards");if(!READY){return;}
@@ -533,7 +539,7 @@ function renderUsage(){
     const st=x.status==="out"?`<span class="ustat out">Probably running out · was due ${fmtD(x.out)}</span>`:x.status==="soon"?`<span class="ustat soon">Due soon · around ${fmtD(x.out)}</span>`:x.status==="ok"?`<span class="ustat ok">Stocked until about ${fmtD(x.out)}</span>`:x.status==="stale"?`<span class="ustat">No purchase since ${fmtD(x.last.d)} · check stock</span>`:"";
     const lastLine=`Last bought <b>${fmtD(x.last.d)}</b>: ${uAmt(s,x.last.u)} at ${esc(x.last.store)}`;
     const cost=`Average ${perUnit(s,x.avg)} per ${uLabel(s,1)}`+(x.best?` · best ${perUnit(s,x.best.usd/x.best.u)} at ${esc(x.best.store)} (${fmtD(x.best.d)})`:"");
-    return `<article class="ucard"><h3>${esc(s.name)}</h3>${st}${rate}<div class="sub">${lastLine}</div><div class="foot">${cost}<br>${x.n} purchase${x.n>1?"s":""}${x.span?" · "+x.span:""}</div></article>`;}).join("")||'<p class="muted">No supplies with pack sizes yet.</p>';
+    return `<article class="ucard"><h3>${esc(s.name)}</h3>${st}${rate}<div class="sub">${lastLine}</div><div class="foot">${cost}<br>${x.n} purchase${x.n>1?"s":""}${x.span?" · "+x.span:""}${x.cnt?` · shelf count of ${uAmt(s,x.cnt.onhand)} on ${fmtD(dOf(x.cnt.date))}`:""}</div></article>`;}).join("")||'<p class="muted">No supplies with pack sizes yet.</p>';
 }
 function setView(v){const u=v==="usage";document.getElementById("v-spend").hidden=u;document.getElementById("v-usage").hidden=!u;
   document.getElementById("tab-spend").setAttribute("aria-selected",String(!u));document.getElementById("tab-usage").setAttribute("aria-selected",String(u));
