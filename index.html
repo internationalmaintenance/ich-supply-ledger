@@ -290,7 +290,7 @@ footer{color:var(--ink-3);font-size:13px;border-top:1px solid var(--rule);paddin
 <div class="view" id="v-usage" role="tabpanel" aria-labelledby="tab-usage" hidden>
 <section>
   <div class="sec-head"><h2>How fast the house goes through supplies</h2><span class="muted" id="usageHint"></span></div>
-  <p class="unote">Worked out from purchases: what was bought between the first and last restock in the last 12 months, divided by the time in between. It doesn’t count what’s on the shelf, so a big stock-up can make an item look due later than it is. Pack sizes come from the “Units per pack” column in the sheet.</p>
+  <p class="unote">Worked out from purchases since May 25, 2025, when the current General Maintenance term began; records from before then are incomplete. The rate is what was bought between the first and last restock, divided by the time in between. It doesn’t count what’s on the shelf, so a big stock-up can make an item look due later than it is. Pack sizes come from the “Units per pack” column in the sheet.</p>
   <div class="ucards" id="ucards"><p class="muted">Loading…</p></div>
 </section>
 </div>
@@ -487,6 +487,8 @@ document.querySelectorAll("#ledger th button").forEach(b=>b.onclick=()=>{const k
 refreshChips();
 if(window.Chart){Chart.defaults.font.family=css("--f-body");}
 /* ---------- Usage view ---------- */
+/* Usage only counts purchases from the start of the current General Maintenance term; records before it are incomplete. Change this date when a new term starts. */
+const USAGE_SINCE="2025-05-25";
 const SUPPLIES=[
   {name:"Toilet paper",unit:"rolls",one:"roll",m:r=>r.unit==="rolls"&&/toilet|bath tissue/i.test(r.item)},
   {name:"Jumbo toilet paper",unit:"jumbo rolls",one:"jumbo roll",m:r=>r.unit==="jumbo rolls"},
@@ -511,14 +513,13 @@ function uLabel(s,n){if(s.gal)return n===1?"gallon":"gallons";if(n===1)return s.
 function uAmt(s,n){const v=s.gal?n/128:n;const r=v>=100?Math.round(v):v>=10?Math.round(v):Math.round(v*10)/10;return r.toLocaleString("en-US")+" "+uLabel(s,r);}
 function perUnit(s,usd){const v=s.gal?usd*128:usd;return v<1?Math.round(v*100)+"¢":"$"+v.toFixed(2);}
 function usageFor(s){
-  const rows=R.filter(r=>r.upp>0&&r.total>0&&s.m(r)).map(r=>({d:dOf(r.date),date:r.date,u:(r.qty||1)*r.upp,usd:r.total,store:r.store})).sort((a,b)=>a.d-b.d);
+  const rows=R.filter(r=>r.date>=USAGE_SINCE&&r.upp>0&&r.total>0&&s.m(r)).map(r=>({d:dOf(r.date),date:r.date,u:(r.qty||1)*r.upp,usd:r.total,store:r.store})).sort((a,b)=>a.d-b.d);
   if(!rows.length)return null;
-  const now=new Date(),yr=rows.filter(r=>now-r.d<=365*DAY);
-  let w=yr.length>=3?yr:rows,span="the last 12 months";if(w===rows)span=rows.length>=2?"all purchases since "+fmtD(rows[0].d):"";
+  const now=new Date(),w=rows,span="since "+fmtD(dOf(USAGE_SINCE));
   const last=rows[rows.length-1];let rate=null;
   if(w.length>=2){const days=(w[w.length-1].d-w[0].d)/DAY;const used=w.slice(0,-1).reduce((a,r)=>a+r.u,0);if(days>=14)rate=used/days;}
   const units=w.reduce((a,r)=>a+r.u,0),usd=w.reduce((a,r)=>a+r.usd,0);
-  const best=rows.filter(r=>now-r.d<=730*DAY).reduce((b,r)=>!b||r.usd/r.u<b.usd/b.u?r:b,null);
+  const best=rows.reduce((b,r)=>!b||r.usd/r.u<b.usd/b.u?r:b,null);
   let out=null,status="none";if(rate&&!s.noOut){out=new Date(last.d.getTime()+last.u/rate*DAY);const left=(out-now)/DAY;status=left<-60?"stale":left<0?"out":left<21?"soon":"ok";}
   return {s,rows,w,span,rate,last,out,status,avg:usd/units,best,n:w.length};
 }
