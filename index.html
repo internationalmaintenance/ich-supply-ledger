@@ -290,7 +290,7 @@ footer{color:var(--ink-3);font-size:13px;border-top:1px solid var(--rule);paddin
 <div class="view" id="v-usage" role="tabpanel" aria-labelledby="tab-usage" hidden>
 <section>
   <div class="sec-head"><h2>How fast the house goes through supplies</h2><span class="muted" id="usageHint"></span></div>
-  <p class="unote">Worked out from purchases since May 25, 2025, when the current General Maintenance term began; records from before then are incomplete. The rate is what was bought between the first and last restock, divided by the time in between. It doesn’t count what’s on the shelf, so a big stock-up can make an item look due later than it is. Pack sizes come from the “Units per pack” column in the sheet.</p>
+  <p class="unote">Worked out from purchases since May 25, 2025, when the current General Maintenance term began; records from before then are incomplete. The rate is what was bought between the first and last restock, divided by the time in between. It assumes the house restocks when it’s down to the last box or jug, so the dates show when to reorder, not when a supply runs out. A bigger-than-usual stock-up can make an item look due later than it is. Pack sizes come from the “Units per pack” column in the sheet.</p>
   <div class="ucards" id="ucards"><p class="muted">Loading…</p></div>
 </section>
 </div>
@@ -527,10 +527,10 @@ function renderUsage(){
   const el=document.getElementById("ucards");if(!READY){return;}
   const list=SUPPLIES.map(usageFor).filter(Boolean);
   const order={out:0,soon:1,ok:2,stale:3,none:4};list.sort((a,b)=>order[a.status]-order[b.status]||(b.rate||0)-(a.rate||0));
-  document.getElementById("usageHint").textContent=list.filter(x=>x.status==="out"||x.status==="soon").length+" of "+list.length+" supplies due soon";
+  document.getElementById("usageHint").textContent=list.filter(x=>x.status==="out"||x.status==="soon").length+" of "+list.length+" supplies to reorder soon";
   el.innerHTML=list.map(x=>{const s=x.s;
     const rate=x.rate?`<div class="rate"><b>${uAmt(s,x.rate*7)}</b><span>a week</span></div><div class="sub">About <b>${uAmt(s,x.rate*30.44)}</b> a month</div>`:`<div class="rate"><span>Not enough purchases yet to estimate a rate</span></div>`;
-    const st=x.status==="out"?`<span class="ustat out">Probably running out · was due ${fmtD(x.out)}</span>`:x.status==="soon"?`<span class="ustat soon">Due soon · around ${fmtD(x.out)}</span>`:x.status==="ok"?`<span class="ustat ok">Stocked until about ${fmtD(x.out)}</span>`:x.status==="stale"?`<span class="ustat">No purchase since ${fmtD(x.last.d)} · check stock</span>`:"";
+    const st=x.status==="out"?`<span class="ustat out">Reorder now · was due ${fmtD(x.out)}</span>`:x.status==="soon"?`<span class="ustat soon">Reorder soon · around ${fmtD(x.out)}</span>`:x.status==="ok"?`<span class="ustat ok">Reorder around ${fmtD(x.out)}</span>`:x.status==="stale"?`<span class="ustat">No purchase since ${fmtD(x.last.d)} · check stock</span>`:"";
     const lastLine=`Last bought <b>${fmtD(x.last.d)}</b>: ${uAmt(s,x.last.u)} at ${esc(x.last.store)}`;
     const cost=`Average ${perUnit(s,x.avg)} per ${uLabel(s,1)}`+(x.best?` · best ${perUnit(s,x.best.usd/x.best.u)} at ${esc(x.best.store)} (${fmtD(x.best.d)})`:"");
     return `<article class="ucard"><h3>${esc(s.name)}</h3>${st}${rate}<div class="sub">${lastLine}</div><div class="foot">${cost}<br>${x.n} purchase${x.n>1?"s":""}${x.span?" · "+x.span:""}</div></article>`;}).join("")||'<p class="muted">No supplies with pack sizes yet.</p>';
